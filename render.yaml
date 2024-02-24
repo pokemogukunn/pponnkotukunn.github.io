@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: yuki-denaku3
+    name: yuki-denaku10
     env: python
     region: Oregon
     plan: free
