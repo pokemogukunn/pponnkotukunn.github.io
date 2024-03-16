@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: yunkun
+    name: web-denataku
     env: python
     region: Oregon
     plan: free
