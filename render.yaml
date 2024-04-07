@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: web-denataku
+    name: google
     env: python
     region: Oregon
     plan: free
