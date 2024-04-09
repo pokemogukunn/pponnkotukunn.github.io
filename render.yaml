@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: google
+    name: dentakunet0314
     env: python
     region: Oregon
     plan: free
