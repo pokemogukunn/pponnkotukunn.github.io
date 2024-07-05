@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse as redirect
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Union
+from typing import Union, Optional
 
 max_api_wait_time = 3
 max_time = 10
@@ -134,49 +134,41 @@ def get_playlist(listid, page):
     return [{"title": i["title"], "id": i["videoId"], "authorId": i["authorId"], "author": i["author"], "type": "video"} for i in t]
 
 def get_comments(videoid):
-    t = json.loads(apicommentsrequest(r"api/v1/comments/" + urllib.parse.quote(videoid) + "?hl=jp"))["comments"]
-    return [{"author": i["author"], "authoricon": i["authorThumbnails"][-1]["url"], "authorid": i["authorId"], "body": i["contentHtml"].replace("\n", "<br>")} for i in t]
-
-def get_replies(videoid, key):
-    t = json.loads(apicommentsrequest(fr"api/v1/comments/{videoid}?hmac_key={key}&hl=jp&format=html"))["contentHtml"]
+    t = json.loads(apicommentsrequest(r"api/v1/comments/" + urllib.parse.quote(videoid)))
+    return [{"author": i["author"], "comment": i["contentHtml"], "authorThumbnails": i["authorThumbnails"][-1]["url"], "published": i["published"]} for i in t]
 
 def check_cookie(cookie):
-    return cookie == "True"
+    return cookie is not None
 
-app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-app.mount("/css", StaticFiles(directory="./css"), name="static")
-app.mount("/kakaomame", StaticFiles(directory="./kakaomame", html=True), name="static")
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+app = FastAPI()
+app.add_middleware(GZipMiddleware)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-from fastapi.templating import Jinja2Templates
-template = Jinja2Templates(directory='templates').TemplateResponse
+@app.get('/', response_class=HTMLResponse)
+def index(response: Response, request: Request):
+    return template('index.html', {"request": request, "videos": cache})
 
-@app.get("/", response_class=HTMLResponse)
-def home(response: Response, request: Request, yuki: Union[str] = Cookie(None)):
-    if check_cookie(yuki):
-        response.set_cookie("yuki", "True", max_age=60 * 60 * 24 * 7)
-        return template("home.html", {"request": request})
-    return redirect("/calculator")
+@app.get('/health', response_class=PlainTextResponse)
+def health_check():
+    return "OK"
 
-@app.get('/watch', response_class=HTMLResponse)
-def video(v: str, response: Response, request: Request, yuki: Union[str] = Cookie(None), proxy: Union[str] = Cookie(None)):
+@app.get('/video', response_class=HTMLResponse)
+def video(videoid: str, response: Response, request: Request, yuki: Union[str] = Cookie(None)):
     if not check_cookie(yuki):
         return redirect("/")
     response.set_cookie(key="yuki", value="True", max_age=7*24*60*60)
-    videoid = v
     t = get_data(videoid)
-    response.set_cookie("yuki", "True", max_age=60 * 60 * 24 * 7)
-    return template('video.html', {"request": request, "videoid": videoid, "videos": t[0], "videofiles": t[1], "description": t[2], "title": t[3], "channelid": t[4], "author": t[5], "authoricon": t[6], "proxy": proxy})
+    return template('video.html', {"request": request, "videos": t[0], "videofiles": t[1], "description": t[2], "title": t[3], "channelid": t[4], "author": t[5], "authoricon": t[6], "proxy": proxy})
 
 @app.get('/search', response_class=HTMLResponse)
-def search(q: str, page: int, response: Response, request: Request, yuki: Union[str] = Cookie(None)):
+def search(q: str, page: Optional[int] = 1, response: Response, request: Request, yuki: Union[str] = Cookie(None)):
     if not check_cookie(yuki):
         return redirect("/")
     response.set_cookie(key="yuki", value="True", max_age=7*24*60*60)
     return template('search.html', {"request": request, "search": get_search(q, page), "q": q})
 
 @app.get('/playlist', response_class=HTMLResponse)
-def playlist(listid: str, page: int, response: Response, request: Request, yuki: Union[str] = Cookie(None)):
+def playlist(listid: str, page: Optional[int] = 1, response: Response, request: Request, yuki: Union[str] = Cookie(None)):
     if not check_cookie(yuki):
         return redirect("/")
     response.set_cookie(key="yuki", value="True", max_age=7*24*60*60)
